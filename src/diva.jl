@@ -46,7 +46,7 @@ NetCDF file `filename` under the variable `varname`.
 * `transform`: Anamorphosis transformation function (default: `Anam.notransform()`).
 * `fitcorrlen`: true of the correlation length is determined from the observation (default `false`).
      Note that the parameter `len` is interpreted differently when `fitcorrlen` is set to `true`.
-* `fithorz_param`: dictionary with additional optional parameters for `fithorzlen`.
+* `fithorz_param`: dictionary with additional optional parameters for `fithorzlen`, for example: `Dict(:smoothz => 200., :searchz => 50.)`.
 * `fitvert_param`: dictionary with additional optional parameters for `fitvertlen`.
 * `distfun`: function to compute the distance (default `(xi,xj) -> DIVAnd.distance(xi[2],xi[1],xj[2],xj[1])`).
 * `mask`: if different from `nothing`, then this mask overrides land-sea mask based on the bathymetry
@@ -321,6 +321,7 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
                 # vertical info
                 dbinfo[:fitvertlen] = Dict{Symbol,Any}(
                     :len => zeros(kmax,length(TS)),
+                    :lenf => zeros(kmax,length(TS)),
                     :var0 => zeros(kmax,length(TS)),
                     :fitinfos => Array{Dict{Symbol,Any},2}(undef,kmax,length(TS))
                 )
@@ -411,11 +412,13 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
             if fitcorrlen
                 # @info "Applying fit of the correlation length"
                 # fit correlation length
+                fithorz_param_sel = Dict{Symbol,Any}(fithorz_param)
+                fithorz_param_sel[:epsilon2] = get(fithorz_param,:epsilon2,epsilon2)[sel]
 
                 lenxy1,infoxy = DIVAnd.fithorzlen(
                     xsel,vaa,depthr;
                     distfun = distfun,
-                    fithorz_param...
+                    fithorz_param_sel...,
                 )
 
                 if n == 3
@@ -433,12 +436,16 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
                 end
 
                 if n == 4
+                    fitvert_param_sel = Dict{Symbol,Any}(fitvert_param)
+                    fitvert_param_sel[:epsilon2] = get(fitvert_param,:epsilon2,epsilon2)[sel]
+
                     lenz1,infoz = DIVAnd.fitvertlen(
                         xsel,vaa,depthr;
                         distfun = distfun,
-                        fitvert_param...
+                        fitvert_param_sel...
                     )
 
+                    dbinfo[:fitvertlen][:lenf][:,timeindex] = lenz1
                     dbinfo[:fitvertlen][:len][:,timeindex] = infoz[:len]
                     dbinfo[:fitvertlen][:var0][:,timeindex] = infoz[:var0]
                     dbinfo[:fitvertlen][:fitinfos][:,timeindex] = infoz[:fitinfos]

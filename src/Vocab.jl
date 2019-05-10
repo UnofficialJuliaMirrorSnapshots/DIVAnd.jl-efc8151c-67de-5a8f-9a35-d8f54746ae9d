@@ -6,6 +6,7 @@ using EzXML
 import HTTP
 if VERSION < v"0.7.0"
     import Base.find
+    using Compat: @info, @warn, @debug
 end
 import Base.findfirst
 import Base.repr
@@ -34,7 +35,7 @@ const namespaces = Dict(
 
 const CFStandardNameURL = "http://cfconventions.org/Data/cf-standard-names/current/src/cf-standard-name-table.xml"
 const CFAreaTypesURL = "http://cfconventions.org/Data/area-type-table/current/src/area-type-table.xml"
-const VocabURL = "http://vocab.ndg.nerc.ac.uk/collection"
+const VocabURL = "http://vocab.nerc.ac.uk/collection"
 const EDMOURL = "http://www.seadatanet.org/urnurl"
 
 
@@ -145,6 +146,7 @@ mutable struct Concept
 end
 
 function Concept(url::AbstractString)
+    @debug "get concept: $url"
     r = HTTP.get(url)
     xdoc = parsexml(String(r.body))
 
