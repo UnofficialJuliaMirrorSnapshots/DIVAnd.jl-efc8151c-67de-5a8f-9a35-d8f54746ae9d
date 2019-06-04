@@ -611,23 +611,25 @@ function _next(iter::VertRandomCoupels,state)
         jindex = -1
 
         for ntries2 = 1:iter.maxntries
-                k = rand(1:length(iter.x[1]))
-                if distfun_m([iter.x[1][k],iter.x[2][k]],[iter.x[1][j],iter.x[2][j]]) < iter.searchxy
-                    jindex = k
-                    break
-                end
-            end
-
-            if jindex != -1
+            k = rand(1:length(iter.x[1]))
+            if ((distfun_m([iter.x[1][k],iter.x[2][k]],[iter.x[1][j],iter.x[2][j]]) < iter.searchxy) &&
+                (j != k))
+#            if (distfun_m([iter.x[1][k],iter.x[2][k]],[iter.x[1][j],iter.x[2][j]]) < iter.searchxy)
+                jindex = k
                 break
             end
         end
 
-        if (j == -1) || (jindex == -1)
-            error("fail to find enought pairs at z = $(iter.zlevel)")
+        if jindex != -1
+            break
         end
-        #@show iter.zlevel,iter.x[3][j],iter.x[3][jindex]
-        return ((j,jindex),state+1)
+    end
+
+    if (j == -1) || (jindex == -1)
+        error("fail to find enought pairs at z = $(iter.zlevel)")
+        end
+    #@show iter.zlevel,iter.x[3][j],iter.x[3][jindex]
+    return ((j,jindex),state+1)
 end
 
 if VERSION >= v"0.7.0"
@@ -677,7 +679,7 @@ function fitlen(x::Tuple,d,weight,nsamp; kwargs...)
 end
 
 
-function fitlen(x::Tuple,d,weight,nsamp,iter; distfun = distfun_euclid, kwargs...)
+function fitlen(x::Tuple,d,weight,nsamp,iter; distfun = distfun_euclid, iseed = length(d), kwargs...)
     if length(d) == 0
         @warn "no data is provided to fitlen"
         return NaN,NaN,Dict{Symbol,Any}()
@@ -722,9 +724,9 @@ function fitlen(x::Tuple,d,weight,nsamp,iter; distfun = distfun_euclid, kwargs..
     x1 = zeros(ndims)
 
     if VERSION >= v"0.7.0-beta.0"
-        Random.seed!(n)
+        Random.seed!(iseed)
     else
-        srand(n)
+        srand(iseed)
     end
 
     for (i,j) in iter

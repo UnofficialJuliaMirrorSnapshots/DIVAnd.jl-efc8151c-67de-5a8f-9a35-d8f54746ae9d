@@ -44,8 +44,12 @@ NetCDF file `filename` under the variable `varname`.
 * `ncvarattrib`: dictionary of NetCDF variable attributes.
 * `ncglobalattrib`: dictionary of NetCDF global attributes.
 * `transform`: Anamorphosis transformation function (default: `Anam.notransform()`).
-* `fitcorrlen`: true of the correlation length is determined from the observation (default `false`).
+* `fitcorrlen`: true if the correlation length is determined from the observation (default `false`).
      Note that the parameter `len` is interpreted differently when `fitcorrlen` is set to `true`.
+* `fithorzcorrlen`: true if the horizontal correlation length is determined from the observation (default: the value of `fitcorrlen`)
+     Note that the parameter `len` is interpreted differently when `fithorzcorrlen` is set to `true`.
+* `fitvertcorrlen`: true if the vertical correlation length is determined from the observation (default: the value of `fitcorrlen`)
+     Note that the parameter `len` is interpreted differently when `fitvertcorrlen` is set to `true`.
 * `fithorz_param`: dictionary with additional optional parameters for `fithorzlen`, for example: `Dict(:smoothz => 200., :searchz => 50.)`.
 * `fitvert_param`: dictionary with additional optional parameters for `fitvertlen`.
 * `distfun`: function to compute the distance (default `(xi,xj) -> DIVAnd.distance(xi[2],xi[1],xj[2],xj[1])`).
@@ -81,7 +85,7 @@ Any additional keywoard arguments understood by `DIVAndgo` can also be used here
 
 The output is a dictionary with the followings keys:
 
-* `:residual`: the difference between the analysis (interpolated linearly to the
+* `:residuals`: the difference between the analysis (interpolated linearly to the
 location of the observation) and the observations. The
 residual is NaN is the observations are not with in the domain as defined by
 the mask and the coordinates of the observations `x`.
@@ -105,7 +109,10 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
                 background_epsilon2_factor::Float64 = 10.,
                 background_lenz = nothing, # m
                 background_len = nothing,
+                background_lenz_factor = 4,
                 fitcorrlen::Bool = false,
+                fithorzcorrlen::Bool = fitcorrlen,
+                fitvertcorrlen::Bool = fitcorrlen,
                 fithorz_param = Dict(),
                 fitvert_param = Dict(),
                 memtofit = 3,
@@ -154,7 +161,7 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
         end
 
         # skip first layer when plotting
-        plotres_ext(timeindex,sel,fit,erri) = plotres(timeindex,sel,fit[:,:,2:end],erri)
+        plotres_ext(timeindex,sel,fit,erri) = plotres(timeindex,sel,fit[:,:,2:end],erri[:,:,2:end])
     end
 
     # metadata of grid
@@ -265,7 +272,7 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
                                   background_lenz)
             end
             if len !== ()
-                background_len = (len[1],len[2],4*len[3])
+                background_len = (len[1],len[2],background_lenz_factor*len[3])
             end
         # 3D analysis (lon,lat,time)
         else
@@ -314,7 +321,7 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
                 [true,true]
             end
 
-        if fitcorrlen
+        if fitvertcorrlen
             kmax = length(depthr)
 
             if n == 4
@@ -381,6 +388,14 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
                     #JLD2.@save "/tmp/test.jld2" background_len mask pmn xyi xsel va epsilon2 sel background_epsilon2_factor toaverage  moddim vm
                     #@show "saving"
                     # background profile
+
+                    if n == 4
+                        if all(background_len[3] .== 0)
+                            @debug "DIVAnd_averaged_bg use twice the resolution as vertical correlation"
+                            background_len[3] .= 2 ./ pmn[3];
+                        end
+                    end
+
                     fi,vaa = DIVAnd.DIVAnd_averaged_bg(
                         mask,pmn,xyi,
                         xsel,
@@ -391,6 +406,7 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
                         moddim = moddim)
 
                     fbackground = fi .+ vm
+                    @debug "fbackground: $(fbackground[1,1,:])"
                     #@show size(fbackground),fbackground[1,1,end]
                     #dbinfo[:background] = fbackground
                     fbackground,vaa
@@ -409,7 +425,7 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
             # unselect the data points out of the domain
             view(sel,sel)[.!selbackground] .= false
 
-            if fitcorrlen
+            if fithorzcorrlen
                 # @info "Applying fit of the correlation length"
                 # fit correlation length
                 fithorz_param_sel = Dict{Symbol,Any}(fithorz_param)
@@ -429,44 +445,46 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
                             len_scaled[2][i,j] = len0[2][i,j] * lenxy1[1]
                         end
                     end
-
-                    for i = 1:2
-                        @info "scaled correlation length (min,max) in $i dimension: $(extrema(len_scaled[i]))"
-                    end
-                end
-
-                if n == 4
-                    fitvert_param_sel = Dict{Symbol,Any}(fitvert_param)
-                    fitvert_param_sel[:epsilon2] = get(fitvert_param,:epsilon2,epsilon2)[sel]
-
-                    lenz1,infoz = DIVAnd.fitvertlen(
-                        xsel,vaa,depthr;
-                        distfun = distfun,
-                        fitvert_param_sel...
-                    )
-
-                    dbinfo[:fitvertlen][:lenf][:,timeindex] = lenz1
-                    dbinfo[:fitvertlen][:len][:,timeindex] = infoz[:len]
-                    dbinfo[:fitvertlen][:var0][:,timeindex] = infoz[:var0]
-                    dbinfo[:fitvertlen][:fitinfos][:,timeindex] = infoz[:fitinfos]
-
-                    # propagate
+                else
                     for k = 1:sz[3]
                         for j = 1:sz[2]
                             for i = 1:sz[1]
                                 len_scaled[1][i,j,k] = len0[1][i,j,k] * lenxy1[k]
                                 len_scaled[2][i,j,k] = len0[2][i,j,k] * lenxy1[k]
-                                len_scaled[3][i,j,k] = len0[3][i,j,k] * lenz1[k]
                             end
                         end
-                    end
-
-                    for i = 1:3
-                        @info "scaled correlation length (min,max) in dimension $i: $(extrema(len_scaled[i]))"
                     end
                 end
             end
 
+            if (fitvertcorrlen) && (n == 4)
+                fitvert_param_sel = Dict{Symbol,Any}(fitvert_param)
+                fitvert_param_sel[:epsilon2] = get(fitvert_param,:epsilon2,epsilon2)[sel]
+
+                lenz1,infoz = DIVAnd.fitvertlen(
+                    xsel,vaa,depthr;
+                    distfun = distfun,
+                    fitvert_param_sel...
+                )
+
+                dbinfo[:fitvertlen][:lenf][:,timeindex] = lenz1
+                dbinfo[:fitvertlen][:len][:,timeindex] = infoz[:len]
+                dbinfo[:fitvertlen][:var0][:,timeindex] = infoz[:var0]
+                dbinfo[:fitvertlen][:fitinfos][:,timeindex] = infoz[:fitinfos]
+
+                # propagate
+                for k = 1:sz[3]
+                    for j = 1:sz[2]
+                        for i = 1:sz[1]
+                            len_scaled[3][i,j,k] = len0[3][i,j,k] * lenz1[k]
+                        end
+                    end
+                end
+            end
+
+            for i = 1:n-1
+                @info "scaled correlation length (min,max) in dimension $i: $(extrema(len_scaled[i]))"
+            end
 
             # factore is the total (cumulative) scale factor for
             # espilon2 (Desroziers)
@@ -512,6 +530,8 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
 
             # sum analysis and backgrounds
             fit = fi2 + fbackground
+            #@show niter_e
+            #JLD2.@save "/tmp/test_fi2.jld" fi2 fit fbackground
 
             # inverse anamorphosis transformation
             fit .= invtrans.(fit)
@@ -522,14 +542,15 @@ function diva3d(xi,x,value,len,epsilon2,filename,varname;
             end
             if maxfield != Inf
                 fit[fit .> maxfield] .= maxfield
-
             end
 
+            #JLD2.@save "/tmp/test_fit.jld2" fit fbackground
 
             plotres_ext(timeindex,isfinite.(residuals) .& sel,fit,erri)
 
             fit[.!mask] .= NaN
             erri[.!mask] .= NaN
+
             if n == 4
                 DIVAnd.writeslice(ncvar, ncvar_relerr, ncvar_Lx,
                                   fit, erri, (:,:,:,timeindex),
