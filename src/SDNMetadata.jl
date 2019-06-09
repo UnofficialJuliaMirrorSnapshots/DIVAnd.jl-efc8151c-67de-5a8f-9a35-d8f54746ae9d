@@ -154,6 +154,13 @@ function SDNMetadata(metadata,filename,varname,lonr,latr;
     return ncglobalattrib,ncvarattrib
 end
 
+"""
+    contact = DIVAnd.getedmoinfo(edmo_code,role)
+
+Returns a dictionary with the contact information from the EDMO registry
+based on the prodivided `emdo_code`. `role` is the Sextant contact information
+role, i.e. either "originator" or "author".
+"""
 
 function getedmoinfo(edmo_code,role)
     entry = DIVAnd.Vocab.EDMO()[edmo_code]
@@ -531,6 +538,7 @@ function gettemplatevars(filepaths::Vector{<:AbstractString},varname,project,cdi
                          WMSlayername = String[],
                          previewindex = 1,
                          basemap = "shadedrelief",
+                         additionalcontacts = [],
                          ignore_errors = false)
 
     # assume that grid and time coverage is the same as the
@@ -768,6 +776,7 @@ function gettemplatevars(filepaths::Vector{<:AbstractString},varname,project,cdi
         ignore_errors = ignore_errors)
 
     append!(contacts,originators)
+    append!(contacts,additionalcontacts)
 
     bbox = join([string(templateVars[c]) for c in [
         "longitude_min","latitude_min",
@@ -851,6 +860,7 @@ end
                      ignore_errors = false,
                      WMSlayername = [],
                      previewindex = 1,
+                     additionalcontacts = [],
                      additionalvars = Dict{String,Any}())
 
 Generate the XML metadata file `xmlfilename` from the NetCDF
@@ -884,6 +894,10 @@ webserver, the `filepath` should also contain this subfolder (e.g.
 structure on OceanBrowser. Relative paths should be used, and if the Julia code isn't right above the NetCDF
 files, use cd("<path>") before each setting the files paramter which use paths relative to this path.
 
+`additionalcontacts` is a list of dictionaries with additional condact
+information to be added in the XML file. Elements are typically create by the
+function `DIVAnd.getedmoinfo`.
+
 ### Example
 
 ```julia
@@ -895,10 +909,15 @@ files = [
          "Autumn (October-December) - 6-year running averages/Water_body_chlorophyll-a.4Danl.nc"
          ];
 
+additionalcontacts = [
+    DIVAnd.getedmoinfo(1977,"originator"), # US NODC for World Ocean Database
+    DIVAnd.getedmoinfo(4630,"originator"), # CORIOLIS for CORA
+]
 
 DIVAnd.divadoxml(files,"Water_body_chlorophyll-a","EMODNET-chemistry","export.zip","test.xml";
     ignore_errors = true,
     additionalvars = Dict("abstract" => "Here goes the abstract"),
+    additionalcontacts = additionalcontacts,
     WMSlayername = ["winter","spring","summer","autumn"]
 )
 ```
@@ -907,7 +926,9 @@ function divadoxml(filepaths::Vector{<:AbstractString},varname,project,cdilist,x
                    ignore_errors = false,
 		           previewindex = 1,
                    basemap = "shadedrelief",
-                   additionalvars = Dict{String,Any}(), WMSlayername = String[])
+                   additionalvars = Dict{String,Any}(),
+                   additionalcontacts = [],
+                   WMSlayername = String[])
 
     # template file we will use.
     templatefile = PROJECTS[project]["template"]
@@ -917,6 +938,7 @@ function divadoxml(filepaths::Vector{<:AbstractString},varname,project,cdilist,x
         WMSlayername = WMSlayername,
 	    previewindex = previewindex,
         basemap = basemap,
+        additionalcontacts = additionalcontacts,
         ignore_errors = ignore_errors)
 
     merge!(templateVars,additionalvars)
