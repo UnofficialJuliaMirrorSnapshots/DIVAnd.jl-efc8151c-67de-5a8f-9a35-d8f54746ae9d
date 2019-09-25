@@ -1,5 +1,5 @@
 """
-   s = DIVAnd_addc(s,c)
+    s = DIVAnd_addc(s,c)
 
 Add a constraint `c` to the cost function defined by `s`.
 The structure `s` is typically created by DIVAnd_background and the contrain `c`
@@ -10,15 +10,15 @@ The added contrain Jc(x) is quadratic and has the following structure.
 Jc(x) = (H x - yo)ᵀ R⁻¹ (H x - yo)
 
 """
-function DIVAnd_addc(s,constrain)
+function DIVAnd_addc(s, constrain)
     if isempty(s.H)
         s.H = constrain.H
         s.R = constrain.R
         s.yo = constrain.yo
     else
-        s.H = vcat(s.H,constrain.H)
-        s.R = blkdiag(s.R,constrain.R)
-        s.yo = vcat(s.yo,constrain.yo)
+        s.H = vcat(s.H, constrain.H)
+        s.R = blkdiag(s.R, constrain.R)
+        s.yo = vcat(s.yo, constrain.yo)
     end
     return s
 end
