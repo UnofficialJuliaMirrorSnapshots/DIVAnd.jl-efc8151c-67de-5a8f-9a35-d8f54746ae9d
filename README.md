@@ -40,7 +40,6 @@ using Pkg
 Pkg.add(PackageSpec(name="DIVAnd", rev="master"))
 ```
 
-
 It is not recommended to download the source of `DIVAnd.jl` directly (using the green *Clone or Download* button above) because this by-passes Julia's package manager and you would need to install the dependencies of `DIVAnd.jl` manually.
 
 
